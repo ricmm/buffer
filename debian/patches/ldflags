@@ -1,0 +1,11 @@
+--- a/Makefile
++++ b/Makefile
+@@ -24,7 +24,7 @@
+ all: buffer
+ 
+ buffer: buffer.o sem.o
+-	$(CC) -o buffer $(CFLAGS) buffer.o sem.o
++	$(CC) -o buffer $(CFLAGS) $(LDFLAGS) buffer.o sem.o
+ 
+ clean:
+ 	$(RM) -f *.o core buffer .merrs

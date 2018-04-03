@@ -1,0 +1,60 @@
+#!/bin/bash
+# Very simple test cases to check whether buffer is working properly.
+#
+# Copyright 2014 Martin Buck <mbuck@debian.org>
+#
+# Licensed under GPL version 1 or later, see COPYING.
+
+set -e
+set -o pipefail
+export LC_ALL=C
+
+check_md5() {
+  MD5="$(md5sum | cut -d " " -f 1)"
+  if [ "$MD5" != "$1" ]; then
+    echo "MD5 mismatch: calculated: $MD5, expected: $1" >&2
+    exit 1
+  fi
+}
+
+ddnull() {
+  dd if=/dev/zero "$@" 2>/dev/null
+}
+
+
+echo "Running buffer test cases" >&2
+# Note: We currently only check buffer's output, not other behaviour like timing,
+# seeking etc. (which would be required to properly test -p/-u/-Z)
+
+echo "Test case: 1k*1000" >&2
+ddnull bs=1k count=1000 | ./buffer | check_md5 80ec129d645c70cf0de45b1a5a682235
+
+echo "Test case: 10k*100" >&2
+ddnull  bs=10k count=100 | ./buffer | check_md5 80ec129d645c70cf0de45b1a5a682235
+
+echo "Test case: nothing" >&2
+./buffer < /dev/null | check_md5 d41d8cd98f00b204e9800998ecf8427e
+
+echo "Test case: nothing, blocked" >&2
+./buffer -B -s 512 < /dev/null | check_md5 d41d8cd98f00b204e9800998ecf8427e
+
+echo "Test case: 1 byte, blocked" >&2
+echo -n 1 | ./buffer -B -s 512 | check_md5 c0e6efe9fa094ea2285f45c0b985a031
+
+echo "Test case: 1000 numbers" >&2
+seq 1000 | ./buffer | check_md5 53d025127ae99ab79e8502aae2d9bea6
+
+echo "Test case: progress messages" >&2
+# Use cut to omit the throughput messages because they're not reproducible
+ddnull bs=1k count=1000 | ./buffer -t -z 100k 2>&1 >/dev/null | strings -a | cut -d , -f 1 | check_md5 7ef53b8db68f3aa04370b248dc5bf84b
+
+echo "Test case: 1k*1000 starting after 70% fill" >&2
+ddnull bs=1k count=1000 | ./buffer -p 70 | check_md5 80ec129d645c70cf0de45b1a5a682235
+
+echo "Test case: 1k*1000 with sleep" >&2
+ddnull bs=1k count=1000 | ./buffer -s 1024 -u 1000 | check_md5 80ec129d645c70cf0de45b1a5a682235
+
+echo "Test case: 1k*1000 infile/outfile" >&2
+ddnull bs=1k count=1000 | ./buffer -i /dev/stdin -o /dev/stdout | check_md5 80ec129d645c70cf0de45b1a5a682235
+
+echo "Buffer test cases completed successfully" >&2
